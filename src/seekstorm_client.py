@@ -1,4 +1,8 @@
+"""A pure-python REST client for SeekStorm search engine."""
+
 from __future__ import annotations
+
+__version__ = "0.1.0"
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path

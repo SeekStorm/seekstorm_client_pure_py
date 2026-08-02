@@ -32,3 +32,6 @@ dependencies = [
 Documentation = "https://github.com/SeekStorm/seekstorm_client_pure_py#readme"
 Source = "https://github.com/SeekStorm/seekstorm_client_pure_py"
 Tracker = "https://github.com/SeekStorm/seekstorm_client_pure_py/issues"
+
+[tool.flit.module]
+name = "seekstorm_client"
