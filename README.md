@@ -1,6 +1,6 @@
 # SeekStorm Pure Python REST Client
 
-<img src="assets/logo.png" width="450" alt="Logo"><br>
+<img src="https://raw.githubusercontent.com/SeekStorm/seekstorm_client_pure_py/main/assets/logo.png" width="450" alt="Logo"><br>
 **Pure Python REST client**, using `httpx` (sync and async), for the **SeekStorm vector & lexical search server**.
 
 seekstorm_client_pure_py is open source licensed under the [Apache License 2.0](https://github.com/SeekStorm/seekstorm_client_py?tab=Apache-2.0-1-ov-file#readme)
