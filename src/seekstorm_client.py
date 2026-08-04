@@ -6,12 +6,36 @@ __version__ = "0.1.0"
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, TypedDict, Union
 
 import httpx
 
 
 Document = Dict[str, Any]
+
+
+FieldType = Literal[
+    "U8",
+    "U16",
+    "U32",
+    "U64",
+    "I8",
+    "I16",
+    "I32",
+    "I64",
+    "Timestamp",
+    "F32",
+    "F64",
+    "Bool",
+    "String16",
+    "String32",
+    "StringSet16",
+    "StringSet32",
+    "Point",
+    "Text",
+    "Json",
+    "Binary",
+]
 
 # Rust ground-truth enum names from seekstorm_client/src/lib.rs:
 # LexicalSimilarity, TokenizerType, StemmerType, StopwordType, FrequentwordType,
@@ -70,28 +94,120 @@ StemmerType = Literal[
     "Yiddish",
 ]
 StopwordSimple = Literal["None", "English", "German", "French", "Spanish"]
-StopwordCustom = Dict[Literal["Custom"], Dict[Literal["terms"], List[str]]]
+
+
+class CustomTermList(TypedDict):
+    """Custom term list used by stopword and frequent-word configs."""
+
+    terms: List[str]
+
+
+class StopwordCustom(TypedDict):
+    """Custom stopword configuration."""
+
+    Custom: CustomTermList
+
+
 StopwordType = Union[StopwordSimple, StopwordCustom]
 FrequentwordSimple = Literal["None", "English", "German", "French", "Spanish"]
-FrequentwordCustom = Dict[Literal["Custom"], Dict[Literal["terms"], List[str]]]
+
+
+class FrequentwordCustom(TypedDict):
+    """Custom frequent-word configuration."""
+
+    Custom: CustomTermList
+
+
 FrequentwordType = Union[FrequentwordSimple, FrequentwordCustom]
 DocumentCompression = Literal["None", "Lz4", "Snappy", "Zstd"]
 NgramSet = int
 ResultType = Literal["Count", "Topk", "TopkCount"]
 QueryType = Literal["Union", "Intersection", "Phrase", "Not"]
 QueryRewritingConfig = Dict[str, Any]
+
+
+class SearchSuggestQueryRewriting(TypedDict):
+    """Query rewriting mode that returns search results plus suggestions."""
+
+    SearchSuggest: QueryRewritingConfig
+
+
+class SearchRewriteQueryRewriting(TypedDict):
+    """Query rewriting mode that transparently rewrites the search query."""
+
+    SearchRewrite: QueryRewritingConfig
+
+
+class SuggestOnlyQueryRewriting(TypedDict):
+    """Query rewriting mode that returns suggestions without executing search-only behavior."""
+
+    SuggestOnly: QueryRewritingConfig
+
+
 QueryRewriting = Union[
     Literal["SearchOnly"],
-    Dict[Literal["SearchSuggest"], QueryRewritingConfig],
-    Dict[Literal["SearchRewrite"], QueryRewritingConfig],
-    Dict[Literal["SuggestOnly"], QueryRewritingConfig],
+    SearchSuggestQueryRewriting,
+    SearchRewriteQueryRewriting,
+    SuggestOnlyQueryRewriting,
 ]
 SearchModeConfig = Dict[str, Any]
+
+
+class VectorSearchMode(TypedDict):
+    """Vector-only retrieval configuration."""
+
+    Vector: SearchModeConfig
+
+
+class HybridSearchMode(TypedDict):
+    """Hybrid lexical-plus-vector retrieval configuration."""
+
+    Hybrid: SearchModeConfig
+
+
 SearchMode = Union[
     Literal["Lexical"],
-    Dict[Literal["Vector"], SearchModeConfig],
-    Dict[Literal["Hybrid"], SearchModeConfig],
+    VectorSearchMode,
+    HybridSearchMode,
 ]
+
+
+class SchemaField(TypedDict, total=False):
+    """Schema field definition used in CreateIndexRequest."""
+
+    field: str
+    field_type: FieldType
+    store: bool
+    index_lexical: bool
+    index_vector: bool
+    facet: bool
+    boost: float
+    longest: bool
+    dictionary_source: bool
+    completion_source: bool
+
+
+class HighlightConfig(TypedDict, total=False):
+    """Highlight configuration entry used in document and search requests."""
+
+    field: str
+    name: str
+    fragment_number: int
+    fragment_size: int
+    highlight_markup: bool
+    pre_tags: str
+    post_tags: str
+
+
+Synonym = Dict[str, Any]
+SpellingCorrectionConfig = Dict[str, Any]
+QueryCompletionConfig = Dict[str, Any]
+ClusteringConfig = Dict[str, Any]
+InferenceConfig = Dict[str, Any]
+DistanceField = Dict[str, Any]
+QueryFacet = Dict[str, Any]
+FacetFilterItem = Dict[str, Any]
+ResultSortItem = Dict[str, Any]
 
 
 class SeekStormApiError(Exception):
@@ -190,7 +306,7 @@ class CreateIndexRequest:
     """
 
     index_name: str
-    schema: List[Dict[str, Any]] = field(default_factory=list)
+    schema: List[SchemaField] = field(default_factory=list)
     similarity: Optional[LexicalSimilarity] = None
     tokenizer: Optional[TokenizerType] = None
     stemmer: Optional[StemmerType] = None
@@ -198,11 +314,11 @@ class CreateIndexRequest:
     frequent_words: Optional[FrequentwordType] = None
     ngram_indexing: Optional[NgramSet] = None
     document_compression: Optional[DocumentCompression] = None
-    synonyms: List[Dict[str, Any]] = field(default_factory=list)
-    spelling_correction: Optional[Dict[str, Any]] = None
-    query_completion: Optional[Dict[str, Any]] = None
-    clustering: Optional[Dict[str, Any]] = None
-    inference: Optional[Dict[str, Any]] = None
+    synonyms: List[Synonym] = field(default_factory=list)
+    spelling_correction: Optional[SpellingCorrectionConfig] = None
+    query_completion: Optional[QueryCompletionConfig] = None
+    clustering: Optional[ClusteringConfig] = None
+    inference: Optional[InferenceConfig] = None
 
     def to_payload(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -267,9 +383,9 @@ class GetDocumentRequest:
     """
 
     query_terms: List[str] = field(default_factory=list)
-    highlights: List[Dict[str, Any]] = field(default_factory=list)
+    highlights: List[HighlightConfig] = field(default_factory=list)
     fields: List[str] = field(default_factory=list)
-    distance_fields: List[Dict[str, Any]] = field(default_factory=list)
+    distance_fields: List[DistanceField] = field(default_factory=list)
 
 
 @dataclass
@@ -303,13 +419,13 @@ class SearchRequestObject:
     length: int = 10
     result_type: ResultType = "TopkCount"
     realtime: bool = False
-    highlights: List[Dict[str, Any]] = field(default_factory=list)
+    highlights: List[HighlightConfig] = field(default_factory=list)
     field_filter: List[str] = field(default_factory=list)
     fields: List[str] = field(default_factory=list)
-    distance_fields: List[Dict[str, Any]] = field(default_factory=list)
-    query_facets: List[Dict[str, Any]] = field(default_factory=list)
-    facet_filter: List[Dict[str, Any]] = field(default_factory=list)
-    result_sort: List[Dict[str, Any]] = field(default_factory=list)
+    distance_fields: List[DistanceField] = field(default_factory=list)
+    query_facets: List[QueryFacet] = field(default_factory=list)
+    facet_filter: List[FacetFilterItem] = field(default_factory=list)
+    result_sort: List[ResultSortItem] = field(default_factory=list)
     query_type_default: QueryType = "Intersection"
     query_rewriting: QueryRewriting = "SearchOnly"
     search_mode: SearchMode = "Lexical"
@@ -634,10 +750,18 @@ class SeekStorm(BaseSeekStormClient):
     """Synchronous SeekStorm REST client with typed request/response dataclasses."""
 
     def __init__(self, base_url: str, apikey_base64: Optional[str] = None, timeout: float = 30.0):
+        """Initialize a synchronous client.
+
+        Args:
+            base_url: Base URL of the SeekStorm server.
+            apikey_base64: Default API key sent with authenticated requests.
+            timeout: Request timeout in seconds.
+        """
         super().__init__(base_url=base_url, apikey_base64=apikey_base64)
         self.client = httpx.Client(timeout=timeout)
 
     def live(self, base_url: Optional[str] = None) -> LiveResponse:
+        """Check whether the SeekStorm server is reachable."""
         response = self.client.get(self._url("/api/v1/live", base_url=base_url), headers=self._headers())
         self._ensure_success(response)
         return LiveResponse(message=response.text)
@@ -648,6 +772,7 @@ class SeekStorm(BaseSeekStormClient):
         api_key_quota_object: ApikeyQuotaObject,
         base_url: Optional[str] = None,
     ) -> ApiKeyResponse:
+        """Create a new API key with the provided quota limits."""
         response = self.client.post(
             self._url("/api/v1/apikey", base_url=base_url),
             json=_to_payload(api_key_quota_object),
@@ -662,6 +787,7 @@ class SeekStorm(BaseSeekStormClient):
         master_apikey_base64: str,
         base_url: Optional[str] = None,
     ) -> RemainingApiKeysResponse:
+        """Delete an API key and return the remaining API-key quota."""
         request = DeleteApikeyRequest(apikey_base64=apikey_base64)
         response = self.client.request(
             "DELETE",
@@ -676,6 +802,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> ApikeyInfoResponse:
+        """Retrieve metadata about the indices accessible by an API key."""
         response = self.client.get(
             self._url("/api/v1/apikey", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -689,6 +816,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> CreateIndexResponse:
+        """Create a new index from a typed CreateIndexRequest payload."""
         response = self.client.post(
             self._url("/api/v1/index", base_url=base_url),
             json=_to_payload(request),
@@ -702,6 +830,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> RemainingIndicesResponse:
+        """Delete an index and return the remaining index quota."""
         response = self.client.delete(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -714,6 +843,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Remove all documents from an index without deleting the index itself."""
         response = self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -728,6 +858,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Commit pending index changes and return the indexed document count."""
         response = self.client.patch(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -740,6 +871,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexResponseObject:
+        """Fetch metadata for a single index."""
         response = self.client.get(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -754,6 +886,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Index a single document."""
         response = self.client.post(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=document,
@@ -768,6 +901,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Index multiple documents in a single request."""
         response = self.client.post(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=list(documents),
@@ -784,6 +918,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Upload and index a PDF payload with file metadata in headers."""
         response = self.client.post(
             self._url(f"/api/v1/index/{index_id}/file", base_url=base_url),
             content=document,
@@ -801,6 +936,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> PdfResponse:
+        """Download the PDF file associated with a document id."""
         response = self.client.get(
             self._url(f"/api/v1/index/{index_id}/file/{doc_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -816,6 +952,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> DocumentResponse:
+        """Retrieve a document with optional field filtering and highlights."""
         response = self.client.request(
             "GET",
             self._url(f"/api/v1/index/{index_id}/doc/{doc_id}", base_url=base_url),
@@ -832,6 +969,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Update a single indexed document by internal document id."""
         response = self.client.patch(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=request.to_payload(),
@@ -846,6 +984,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Update multiple indexed documents in one request."""
         response = self.client.patch(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=request.to_payload(),
@@ -860,6 +999,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete a single document by internal document id."""
         response = self.client.delete(
             self._url(f"/api/v1/index/{index_id}/doc/{doc_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -873,6 +1013,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete multiple documents by their internal document ids."""
         response = self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -888,6 +1029,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete documents that match a search query payload."""
         response = self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -903,6 +1045,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IteratorResult:
+        """Iterate over documents in an index using a typed iterator request."""
         response = self.client.post(
             self._url(f"/api/v1/index/{index_id}/iterator", base_url=base_url),
             json=_to_payload(request),
@@ -918,6 +1061,7 @@ class SeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> SearchResultObject:
+        """Execute a search query against an index."""
         response = self.client.post(
             self._url(f"/api/v1/index/{index_id}/query", base_url=base_url),
             json=request.to_payload(),
@@ -927,6 +1071,7 @@ class SeekStorm(BaseSeekStormClient):
         return SearchResultObject.from_dict(response.json())
 
     def close(self) -> None:
+        """Close the underlying synchronous HTTP client."""
         self.client.close()
 
     def __enter__(self) -> "SeekStorm":
@@ -940,10 +1085,18 @@ class AsyncSeekStorm(BaseSeekStormClient):
     """Asynchronous SeekStorm REST client with typed request/response dataclasses."""
 
     def __init__(self, base_url: str, apikey_base64: Optional[str] = None, timeout: float = 30.0):
+        """Initialize an asynchronous client.
+
+        Args:
+            base_url: Base URL of the SeekStorm server.
+            apikey_base64: Default API key sent with authenticated requests.
+            timeout: Request timeout in seconds.
+        """
         super().__init__(base_url=base_url, apikey_base64=apikey_base64)
         self.client = httpx.AsyncClient(timeout=timeout)
 
     async def live(self, base_url: Optional[str] = None) -> LiveResponse:
+        """Check whether the SeekStorm server is reachable."""
         response = await self.client.get(self._url("/api/v1/live", base_url=base_url), headers=self._headers())
         self._ensure_success(response)
         return LiveResponse(message=response.text)
@@ -954,6 +1107,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         api_key_quota_object: ApikeyQuotaObject,
         base_url: Optional[str] = None,
     ) -> ApiKeyResponse:
+        """Create a new API key with the provided quota limits."""
         response = await self.client.post(
             self._url("/api/v1/apikey", base_url=base_url),
             json=_to_payload(api_key_quota_object),
@@ -968,6 +1122,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         master_apikey_base64: str,
         base_url: Optional[str] = None,
     ) -> RemainingApiKeysResponse:
+        """Delete an API key and return the remaining API-key quota."""
         request = DeleteApikeyRequest(apikey_base64=apikey_base64)
         response = await self.client.request(
             "DELETE",
@@ -982,6 +1137,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> ApikeyInfoResponse:
+        """Retrieve metadata about the indices accessible by an API key."""
         response = await self.client.get(
             self._url("/api/v1/apikey", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -995,6 +1151,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> CreateIndexResponse:
+        """Create a new index from a typed CreateIndexRequest payload."""
         response = await self.client.post(
             self._url("/api/v1/index", base_url=base_url),
             json=_to_payload(request),
@@ -1008,6 +1165,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> RemainingIndicesResponse:
+        """Delete an index and return the remaining index quota."""
         response = await self.client.delete(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -1020,6 +1178,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Remove all documents from an index without deleting the index itself."""
         response = await self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -1034,6 +1193,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Commit pending index changes and return the indexed document count."""
         response = await self.client.patch(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -1046,6 +1206,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexResponseObject:
+        """Fetch metadata for a single index."""
         response = await self.client.get(
             self._url(f"/api/v1/index/{index_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -1060,6 +1221,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Index a single document."""
         response = await self.client.post(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=document,
@@ -1074,6 +1236,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Index multiple documents in a single request."""
         response = await self.client.post(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=list(documents),
@@ -1090,6 +1253,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Upload and index a PDF payload with file metadata in headers."""
         response = await self.client.post(
             self._url(f"/api/v1/index/{index_id}/file", base_url=base_url),
             content=document,
@@ -1107,6 +1271,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> PdfResponse:
+        """Download the PDF file associated with a document id."""
         response = await self.client.get(
             self._url(f"/api/v1/index/{index_id}/file/{doc_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -1122,6 +1287,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> DocumentResponse:
+        """Retrieve a document with optional field filtering and highlights."""
         response = await self.client.request(
             "GET",
             self._url(f"/api/v1/index/{index_id}/doc/{doc_id}", base_url=base_url),
@@ -1138,6 +1304,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Update a single indexed document by internal document id."""
         response = await self.client.patch(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=request.to_payload(),
@@ -1152,6 +1319,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Update multiple indexed documents in one request."""
         response = await self.client.patch(
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
             json=request.to_payload(),
@@ -1166,6 +1334,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete a single document by internal document id."""
         response = await self.client.delete(
             self._url(f"/api/v1/index/{index_id}/doc/{doc_id}", base_url=base_url),
             headers=self._headers(apikey=apikey_base64),
@@ -1179,6 +1348,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete multiple documents by their internal document ids."""
         response = await self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -1194,6 +1364,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IndexedDocumentCountResponse:
+        """Delete documents that match a search query payload."""
         response = await self.client.request(
             "DELETE",
             self._url(f"/api/v1/index/{index_id}/doc", base_url=base_url),
@@ -1209,6 +1380,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> IteratorResult:
+        """Iterate over documents in an index using a typed iterator request."""
         response = await self.client.post(
             self._url(f"/api/v1/index/{index_id}/iterator", base_url=base_url),
             json=_to_payload(request),
@@ -1224,6 +1396,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         apikey_base64: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> SearchResultObject:
+        """Execute a search query against an index."""
         response = await self.client.post(
             self._url(f"/api/v1/index/{index_id}/query", base_url=base_url),
             json=request.to_payload(),
@@ -1233,6 +1406,7 @@ class AsyncSeekStorm(BaseSeekStormClient):
         return SearchResultObject.from_dict(response.json())
 
     async def close(self) -> None:
+        """Close the underlying asynchronous HTTP client."""
         await self.client.aclose()
 
     async def __aenter__(self) -> "AsyncSeekStorm":
