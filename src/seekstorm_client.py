@@ -6,12 +6,92 @@ __version__ = "0.1.0"
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import httpx
 
 
 Document = Dict[str, Any]
+
+# Rust ground-truth enum names from seekstorm_client/src/lib.rs:
+# LexicalSimilarity, TokenizerType, StemmerType, StopwordType, FrequentwordType,
+# DocumentCompression, ResultType, QueryType, QueryRewriting, SearchMode, NgramSet.
+#
+# NgramSet in SeekStorm is a bitmask enum (flags), therefore `int` remains the correct
+# representation for single flags and bitwise combinations.
+LexicalSimilarity = Literal["Bm25f", "Bm25fProximity"]
+TokenizerType = Literal[
+    "AsciiAlphabetic",
+    "UnicodeAlphanumeric",
+    "UnicodeAlphanumericFolded",
+    "Whitespace",
+    "WhitespaceLowercase",
+    "UnicodeAlphanumericZH",
+]
+StemmerType = Literal[
+    "None",
+    "Arabic",
+    "Armenian",
+    "Basque",
+    "Catalan",
+    "Czech",
+    "Danish",
+    "Dutch",
+    "DutchPorter",
+    "English",
+    "Esperanto",
+    "Estonian",
+    "Finnish",
+    "French",
+    "German",
+    "Greek",
+    "Hindi",
+    "Hungarian",
+    "Indonesian",
+    "Irish",
+    "Italian",
+    "Lithuanian",
+    "Lovins",
+    "Nepali",
+    "Norwegian",
+    "Persian",
+    "Polish",
+    "Porter",
+    "Portuguese",
+    "Romanian",
+    "Russian",
+    "Serbian",
+    "Sesotho",
+    "Spanish",
+    "Swedish",
+    "Tamil",
+    "Turkish",
+    "Ukrainian",
+    "Yiddish",
+]
+StopwordSimple = Literal["None", "English", "German", "French", "Spanish"]
+StopwordCustom = Dict[Literal["Custom"], Dict[Literal["terms"], List[str]]]
+StopwordType = Union[StopwordSimple, StopwordCustom]
+FrequentwordSimple = Literal["None", "English", "German", "French", "Spanish"]
+FrequentwordCustom = Dict[Literal["Custom"], Dict[Literal["terms"], List[str]]]
+FrequentwordType = Union[FrequentwordSimple, FrequentwordCustom]
+DocumentCompression = Literal["None", "Lz4", "Snappy", "Zstd"]
+NgramSet = int
+ResultType = Literal["Count", "Topk", "TopkCount"]
+QueryType = Literal["Union", "Intersection", "Phrase", "Not"]
+QueryRewritingConfig = Dict[str, Any]
+QueryRewriting = Union[
+    Literal["SearchOnly"],
+    Dict[Literal["SearchSuggest"], QueryRewritingConfig],
+    Dict[Literal["SearchRewrite"], QueryRewritingConfig],
+    Dict[Literal["SuggestOnly"], QueryRewritingConfig],
+]
+SearchModeConfig = Dict[str, Any]
+SearchMode = Union[
+    Literal["Lexical"],
+    Dict[Literal["Vector"], SearchModeConfig],
+    Dict[Literal["Hybrid"], SearchModeConfig],
+]
 
 
 class SeekStormApiError(Exception):
@@ -25,21 +105,50 @@ class SeekStormApiError(Exception):
 
 @dataclass
 class LiveResponse:
+    """Response returned by the health endpoint.
+
+    Attributes:
+        message: Raw response text returned by the SeekStorm live endpoint.
+    """
+
     message: str
 
 
 @dataclass
 class ApiKeyResponse:
+    """Response returned when creating a new API key.
+
+    Attributes:
+        api_key_base64: Newly generated API key in base64 representation.
+    """
+
     api_key_base64: str
 
 
 @dataclass
 class RemainingApiKeysResponse:
+    """Response returned after deleting an API key.
+
+    Attributes:
+        remaining_api_keys: Number of API keys still available for creation.
+    """
+
     remaining_api_keys: int
 
 
 @dataclass
 class ApikeyQuotaObject:
+    """Quota and feature limits assigned to an API key.
+
+    Attributes:
+        indices_max: Maximum number of indices allowed for the API key.
+        indices_size_max: Maximum combined index size in bytes.
+        documents_max: Maximum number of indexed documents.
+        operations_max: Maximum number of indexing operations.
+        rate_limit: Optional per-minute or per-window request limit configured server-side.
+        demo: Whether demo restrictions should be enabled for this API key.
+    """
+
     indices_max: int = 0
     indices_size_max: int = 0
     documents_max: int = 0
@@ -50,20 +159,45 @@ class ApikeyQuotaObject:
 
 @dataclass
 class DeleteApikeyRequest:
+    """Request payload to delete an existing API key.
+
+    Attributes:
+        apikey_base64: API key to be removed.
+    """
+
     apikey_base64: str
 
 
 @dataclass
 class CreateIndexRequest:
+    """Request payload to create a new index.
+
+    Attributes:
+        index_name: Human-readable name of the index.
+        schema: Field schema definition for indexed document fields.
+        similarity: Lexical similarity algorithm used for scoring.
+        tokenizer: Tokenizer strategy applied during indexing and search.
+        stemmer: Stemmer configuration for term normalization.
+        stop_words: Stop-word handling mode.
+        frequent_words: Frequent-word handling mode.
+        ngram_indexing: N-gram indexing mode/level.
+        document_compression: Document storage compression setting.
+        synonyms: Synonym rules used for query expansion.
+        spelling_correction: Spelling correction configuration object.
+        query_completion: Query completion/autocomplete configuration object.
+        clustering: Result clustering configuration object.
+        inference: Vector inference configuration object.
+    """
+
     index_name: str
     schema: List[Dict[str, Any]] = field(default_factory=list)
-    similarity: Optional[str] = None
-    tokenizer: Optional[str] = None
-    stemmer: Optional[str] = None
-    stop_words: Optional[str] = None
-    frequent_words: Optional[str] = None
-    ngram_indexing: Optional[int] = None
-    document_compression: Optional[str] = None
+    similarity: Optional[LexicalSimilarity] = None
+    tokenizer: Optional[TokenizerType] = None
+    stemmer: Optional[StemmerType] = None
+    stop_words: Optional[StopwordType] = None
+    frequent_words: Optional[FrequentwordType] = None
+    ngram_indexing: Optional[NgramSet] = None
+    document_compression: Optional[DocumentCompression] = None
     synonyms: List[Dict[str, Any]] = field(default_factory=list)
     spelling_correction: Optional[Dict[str, Any]] = None
     query_completion: Optional[Dict[str, Any]] = None
@@ -102,6 +236,17 @@ class CreateIndexRequest:
 
 @dataclass
 class GetIteratorRequest:
+    """Request payload for document iteration.
+
+    Attributes:
+        document_id: Optional anchor document id used as starting position.
+        skip: Number of items to skip from the anchor.
+        take: Number of items to return.
+        include_deleted: Whether soft-deleted documents should be included.
+        include_document: Whether full document bodies should be included.
+        fields: Optional subset of document fields to include.
+    """
+
     document_id: Optional[int] = None
     skip: int = 0
     take: int = 1
@@ -112,6 +257,15 @@ class GetIteratorRequest:
 
 @dataclass
 class GetDocumentRequest:
+    """Request payload for retrieving a document with query-aware decorations.
+
+    Attributes:
+        query_terms: Query terms used for highlight and scoring context.
+        highlights: Highlight rules applied to text fields.
+        fields: Optional subset of document fields to return.
+        distance_fields: Distance/similarity configuration for vector-aware fields.
+    """
+
     query_terms: List[str] = field(default_factory=list)
     highlights: List[Dict[str, Any]] = field(default_factory=list)
     fields: List[str] = field(default_factory=list)
@@ -120,12 +274,34 @@ class GetDocumentRequest:
 
 @dataclass
 class SearchRequestObject:
+    """Request payload for querying an index.
+
+    Attributes:
+        query_string: Search query string. Serialized as `query` in the REST payload.
+        query_vector: Optional vector used for semantic or hybrid search.
+        enable_empty_query: Whether empty queries are allowed.
+        offset: Zero-based starting offset for paging.
+        length: Number of hits to return.
+        result_type: Result mode, for example top-k only vs top-k with count.
+        realtime: Whether to include uncommitted changes.
+        highlights: Highlighting configuration entries.
+        field_filter: Field-level filters for query execution.
+        fields: Subset of fields to return for each hit.
+        distance_fields: Distance/similarity configuration entries.
+        query_facets: Facet aggregation requests.
+        facet_filter: Facet filters applied before returning results.
+        result_sort: Explicit sorting instructions.
+        query_type_default: Default boolean query type.
+        query_rewriting: Query rewriting behavior.
+        search_mode: Lexical/vector/hybrid mode.
+    """
+
     query_string: str
     query_vector: Optional[Any] = None
     enable_empty_query: bool = False
     offset: int = 0
     length: int = 10
-    result_type: str = "TopkCount"
+    result_type: ResultType = "TopkCount"
     realtime: bool = False
     highlights: List[Dict[str, Any]] = field(default_factory=list)
     field_filter: List[str] = field(default_factory=list)
@@ -134,9 +310,9 @@ class SearchRequestObject:
     query_facets: List[Dict[str, Any]] = field(default_factory=list)
     facet_filter: List[Dict[str, Any]] = field(default_factory=list)
     result_sort: List[Dict[str, Any]] = field(default_factory=list)
-    query_type_default: str = "Intersection"
-    query_rewriting: str = "SearchOnly"
-    search_mode: str = "Lexical"
+    query_type_default: QueryType = "Intersection"
+    query_rewriting: QueryRewriting = "SearchOnly"
+    search_mode: SearchMode = "Lexical"
 
     def to_payload(self) -> Dict[str, Any]:
         payload = _to_payload_from_dataclass(self)
@@ -146,6 +322,13 @@ class SearchRequestObject:
 
 @dataclass
 class UpdateDocumentRequest:
+    """Request payload for updating a single document.
+
+    Attributes:
+        doc_id: Internal SeekStorm document id to update.
+        document: Partial or full replacement document content.
+    """
+
     doc_id: int
     document: Document
 
@@ -155,6 +338,12 @@ class UpdateDocumentRequest:
 
 @dataclass
 class UpdateDocumentsRequest:
+    """Request payload for batch document updates.
+
+    Attributes:
+        items: Sequence of single-document update operations.
+    """
+
     items: List[UpdateDocumentRequest]
 
     def to_payload(self) -> List[List[Any]]:
@@ -163,21 +352,53 @@ class UpdateDocumentsRequest:
 
 @dataclass
 class CreateIndexResponse:
+    """Response returned after index creation.
+
+    Attributes:
+        index_id: Numeric identifier of the newly created index.
+    """
+
     index_id: int
 
 
 @dataclass
 class RemainingIndicesResponse:
+    """Response returned after index deletion.
+
+    Attributes:
+        remaining_indices: Number of indices still available for creation.
+    """
+
     remaining_indices: int
 
 
 @dataclass
 class IndexedDocumentCountResponse:
+    """Response containing the current indexed document count.
+
+    Attributes:
+        indexed_document_count: Number of documents currently indexed.
+    """
+
     indexed_document_count: int
 
 
 @dataclass
 class IndexResponseObject:
+    """Metadata returned for a SeekStorm index.
+
+    Attributes:
+        id: Index identifier.
+        name: Index name.
+        schema: Effective index schema keyed by field name.
+        indexed_doc_count: Number of indexed (including pending) documents.
+        committed_doc_count: Number of committed documents.
+        operations_count: Total write operations applied to the index.
+        query_count: Total executed queries.
+        version: SeekStorm index version string.
+        facets_minmax: Per-facet min/max statistics if available.
+    """
+
     id: int
     name: str
     schema: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -205,6 +426,12 @@ class IndexResponseObject:
 
 @dataclass
 class ApikeyInfoResponse:
+    """Response containing API-key-visible index metadata.
+
+    Attributes:
+        indices: List of indices accessible with the queried API key.
+    """
+
     indices: List[IndexResponseObject] = field(default_factory=list)
 
 
@@ -230,6 +457,13 @@ def _parse_apikey_info_payload(payload: Any) -> ApikeyInfoResponse:
 
 @dataclass
 class IteratorResultItem:
+    """Single item returned by the document iterator endpoint.
+
+    Attributes:
+        doc_id: Internal SeekStorm document id.
+        doc: Optional materialized document payload.
+    """
+
     doc_id: int
     doc: Optional[Document] = None
 
@@ -240,6 +474,13 @@ class IteratorResultItem:
 
 @dataclass
 class IteratorResult:
+    """Document iterator response page.
+
+    Attributes:
+        skip: Number of skipped items reflected in this result.
+        results: Iterator items returned for the request window.
+    """
+
     skip: int
     results: List[IteratorResultItem] = field(default_factory=list)
 
@@ -253,16 +494,44 @@ class IteratorResult:
 
 @dataclass
 class DocumentResponse:
+    """Response wrapper for a single document.
+
+    Attributes:
+        document: Document payload as returned by the server.
+    """
+
     document: Document
 
 
 @dataclass
 class PdfResponse:
+    """Response wrapper for a binary PDF payload.
+
+    Attributes:
+        content: Raw PDF bytes.
+    """
+
     content: bytes
 
 
 @dataclass
 class SearchResultObject:
+    """Search result payload returned by query endpoint.
+
+    Attributes:
+        time: Query execution time reported by the server.
+        original_query: Original user query before rewriting.
+        query: Effective query executed by SeekStorm.
+        offset: Result offset used for paging.
+        length: Number of returned results.
+        count: Number of matched results returned/visible for this request.
+        count_total: Total number of matches across the index.
+        query_terms: Tokenized query terms used internally.
+        results: List of matched documents.
+        facets: Facet aggregation results.
+        suggestions: Suggested query alternatives.
+    """
+
     time: int = 0
     original_query: str = ""
     query: str = ""
