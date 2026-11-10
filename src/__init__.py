@@ -10,10 +10,12 @@ from .seekstorm_client import (
 	CreateIndexResponse,
 	DeleteApikeyRequest,
 	DocumentCompression,
+	DocumentOption,
 	DocumentResponse,
 	FrequentwordType,
 	GetDocumentRequest,
 	GetIteratorRequest,
+	IndexConfig,
 	IndexedDocumentCountResponse,
 	IndexResponseObject,
 	IteratorResult,
@@ -29,6 +31,7 @@ from .seekstorm_client import (
 	ResultType,
 	SearchMode,
 	SearchRequestObject,
+	SearchResult,
 	SearchResultObject,
 	SeekStorm,
 	SeekStormApiError,
@@ -39,7 +42,7 @@ from .seekstorm_client import (
 	UpdateDocumentsRequest,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = [
 	"ApiKeyResponse",
@@ -50,10 +53,12 @@ __all__ = [
 	"CreateIndexResponse",
 	"DeleteApikeyRequest",
 	"DocumentCompression",
+	"DocumentOption",
 	"DocumentResponse",
 	"FrequentwordType",
 	"GetDocumentRequest",
 	"GetIteratorRequest",
+	"IndexConfig",
 	"IndexedDocumentCountResponse",
 	"IndexResponseObject",
 	"IteratorResult",
@@ -69,6 +74,7 @@ __all__ = [
 	"ResultType",
 	"SearchMode",
 	"SearchRequestObject",
+	"SearchResult",
 	"SearchResultObject",
 	"SeekStorm",
 	"SeekStormApiError",
@@ -78,4 +84,3 @@ __all__ = [
 	"UpdateDocumentRequest",
 	"UpdateDocumentsRequest",
 ]
-    

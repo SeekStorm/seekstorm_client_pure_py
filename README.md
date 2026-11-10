@@ -69,6 +69,7 @@ pip install seekstorm-client-pure-py
 from seekstorm_client import (
   SeekStorm,
   CreateIndexRequest,
+  IndexConfig,
   SearchRequestObject,
 )
 
@@ -84,13 +85,15 @@ schema = [
 ]
 
 create_request = CreateIndexRequest(
-  index_name="demo_index",
+  index_config=IndexConfig(
+    name="demo_index",
+    lexical_similarity="Bm25f",
+    tokenizer="UnicodeAlphanumeric",
+    stemmer="None",
+    document_compression="Snappy",
+    ngram_indexing=0,
+  ),
   schema=schema,
-  similarity="Bm25f",
-  tokenizer="UnicodeAlphanumeric",
-  stemmer="None",
-  document_compression="Snappy",
-  ngram_indexing=0,
 )
 
 index_id = client.create_index(create_request).index_id
@@ -111,14 +114,16 @@ client.close()
 ```python
 import asyncio
 
-from seekstorm_client import AsyncSeekStorm, CreateIndexRequest, SearchRequestObject
+from seekstorm_client import AsyncSeekStorm, CreateIndexRequest, IndexConfig, SearchRequestObject
 
 
 async def main() -> None:
   client = AsyncSeekStorm(base_url="http://127.0.0.1:80", apikey_base64="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
 
   request = CreateIndexRequest(
-    index_name="demo_async_index",
+    index_config=IndexConfig(
+      name="demo_async_index",
+    ),
     schema=[
       {"field": "title", "field_type": "Text", "store": True, "index_lexical": True},
       {"field": "body", "field_type": "Text", "store": True, "index_lexical": True},
@@ -140,6 +145,38 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+## Search Results and Document Retrieval
+
+The `SearchResultObject` returned from `query_index()` contains two separate fields:
+
+- `results`: A list of `SearchResult` items (always returned), each containing:
+  - `doc_id`: Document identifier
+  - `score`: Relevance score for the document
+
+- `documents`: A list of full `Document` objects (only returned if `return_documents` is specified in the search request)
+
+To retrieve full documents during a search, specify the `return_documents` parameter with a `DocumentOption`:
+
+```python
+from seekstorm_client import SearchRequestObject, DocumentOption
+
+# Search without documents (lightweight)
+query = SearchRequestObject(query_string="+hello")
+result = client.query_index(index_id, query)
+print(f"Found {len(result.results)} results")  # results contains only doc_id and score
+
+# Search with full documents
+query = SearchRequestObject(
+  query_string="+hello",
+  return_documents=DocumentOption(fields=["title", "body"])
+)
+result = client.query_index(index_id, query)
+print(f"Found {len(result.results)} results")
+print(f"Retrieved {len(result.documents)} documents")  # now documents are populated
+for doc in result.documents:
+  print(doc)  # full document payloads
+```
+
 ## Dataclasses
 
 The client exposes typed dataclasses for common request/response objects.
@@ -148,9 +185,11 @@ Request dataclasses:
 
 - `ApikeyQuotaObject`
 - `CreateIndexRequest`
+- `DocumentOption`
 - `DeleteApikeyRequest`
 - `GetDocumentRequest`
 - `GetIteratorRequest`
+- `IndexConfig`
 - `SearchRequestObject`
 - `UpdateDocumentRequest`
 - `UpdateDocumentsRequest`
@@ -170,6 +209,7 @@ Response dataclasses:
 - `DocumentResponse`
 - `PdfResponse`
 - `SearchResultObject`
+- `SearchResult` (TypedDict containing doc_id and score)
 
 Error type:
 

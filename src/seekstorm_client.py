@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
@@ -199,6 +199,21 @@ class HighlightConfig(TypedDict, total=False):
     post_tags: str
 
 
+@dataclass
+class DocumentOption:
+    """Options for document retrieval in search and get_document requests.
+
+    Attributes:
+        fields: Optional subset of document fields to include. If empty, all stored fields are returned.
+        distance_fields: Distance/similarity configuration for vector-aware fields.
+        highlights: Highlight rules applied to text fields.
+    """
+
+    fields: List[str] = field(default_factory=list)
+    distance_fields: List[DistanceField] = field(default_factory=list)
+    highlights: List[HighlightConfig] = field(default_factory=list)
+
+
 Synonym = Dict[str, Any]
 SpellingCorrectionConfig = Dict[str, Any]
 QueryCompletionConfig = Dict[str, Any]
@@ -285,69 +300,63 @@ class DeleteApikeyRequest:
 
 
 @dataclass
-class CreateIndexRequest:
-    """Request payload to create a new index.
+class IndexConfig:
+    """Index configuration for the new index.
 
     Attributes:
-        index_name: Human-readable name of the index.
-        schema: Field schema definition for indexed document fields.
-        similarity: Lexical similarity algorithm used for scoring.
+        name: Index name, used for informational purposes only.
+        lexical_similarity: Lexical similarity algorithm used for scoring.
         tokenizer: Tokenizer strategy applied during indexing and search.
         stemmer: Stemmer configuration for term normalization.
         stop_words: Stop-word handling mode.
         frequent_words: Frequent-word handling mode.
         ngram_indexing: N-gram indexing mode/level.
         document_compression: Document storage compression setting.
-        synonyms: Synonym rules used for query expansion.
         spelling_correction: Spelling correction configuration object.
         query_completion: Query completion/autocomplete configuration object.
         clustering: Result clustering configuration object.
         inference: Vector inference configuration object.
     """
 
-    index_name: str
-    schema: List[SchemaField] = field(default_factory=list)
-    similarity: Optional[LexicalSimilarity] = None
+    name: str
+    lexical_similarity: Optional[LexicalSimilarity] = None
     tokenizer: Optional[TokenizerType] = None
     stemmer: Optional[StemmerType] = None
     stop_words: Optional[StopwordType] = None
     frequent_words: Optional[FrequentwordType] = None
     ngram_indexing: Optional[NgramSet] = None
     document_compression: Optional[DocumentCompression] = None
-    synonyms: List[Synonym] = field(default_factory=list)
     spelling_correction: Optional[SpellingCorrectionConfig] = None
     query_completion: Optional[QueryCompletionConfig] = None
     clustering: Optional[ClusteringConfig] = None
     inference: Optional[InferenceConfig] = None
 
+
+@dataclass
+class CreateIndexRequest:
+    """Request payload to create a new index.
+
+    Attributes:
+        index_config: Index configuration containing name and indexing options.
+        schema: Field schema definition for indexed document fields.
+        synonyms: Synonym rules used for query expansion.
+    """
+
+    index_config: IndexConfig
+    schema: List[SchemaField] = field(default_factory=list)
+    synonyms: List[Synonym] = field(default_factory=list)
+
     def to_payload(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
-            "index_name": self.index_name,
+            "index_config": _to_payload(self.index_config),
             "schema": self.schema,
         }
-
-        optional_values = {
-            "similarity": self.similarity,
-            "tokenizer": self.tokenizer,
-            "stemmer": self.stemmer,
-            "stop_words": self.stop_words,
-            "frequent_words": self.frequent_words,
-            "ngram_indexing": self.ngram_indexing,
-            "document_compression": self.document_compression,
-            "spelling_correction": self.spelling_correction,
-            "query_completion": self.query_completion,
-            "clustering": self.clustering,
-            "inference": self.inference,
-        }
-
-        for key, value in optional_values.items():
-            if value is not None:
-                payload[key] = value
 
         if self.synonyms:
             payload["synonyms"] = self.synonyms
 
         return payload
+
 
 
 @dataclass
@@ -377,15 +386,11 @@ class GetDocumentRequest:
 
     Attributes:
         query_terms: Query terms used for highlight and scoring context.
-        highlights: Highlight rules applied to text fields.
-        fields: Optional subset of document fields to return.
-        distance_fields: Distance/similarity configuration for vector-aware fields.
+        return_documents: Options for returning documents (fields, highlights, distance fields).
     """
 
     query_terms: List[str] = field(default_factory=list)
-    highlights: List[HighlightConfig] = field(default_factory=list)
-    fields: List[str] = field(default_factory=list)
-    distance_fields: List[DistanceField] = field(default_factory=list)
+    return_documents: Optional[DocumentOption] = None
 
 
 @dataclass
@@ -400,16 +405,14 @@ class SearchRequestObject:
         length: Number of hits to return.
         result_type: Result mode, for example top-k only vs top-k with count.
         realtime: Whether to include uncommitted changes.
-        highlights: Highlighting configuration entries.
         field_filter: Field-level filters for query execution.
-        fields: Subset of fields to return for each hit.
-        distance_fields: Distance/similarity configuration entries.
         query_facets: Facet aggregation requests.
         facet_filter: Facet filters applied before returning results.
         result_sort: Explicit sorting instructions.
         query_type_default: Default boolean query type.
         query_rewriting: Query rewriting behavior.
         search_mode: Lexical/vector/hybrid mode.
+        return_documents: Options for returning documents (fields, highlights, distance fields).
     """
 
     query_string: str
@@ -419,16 +422,14 @@ class SearchRequestObject:
     length: int = 10
     result_type: ResultType = "TopkCount"
     realtime: bool = False
-    highlights: List[HighlightConfig] = field(default_factory=list)
     field_filter: List[str] = field(default_factory=list)
-    fields: List[str] = field(default_factory=list)
-    distance_fields: List[DistanceField] = field(default_factory=list)
     query_facets: List[QueryFacet] = field(default_factory=list)
     facet_filter: List[FacetFilterItem] = field(default_factory=list)
     result_sort: List[ResultSortItem] = field(default_factory=list)
     query_type_default: QueryType = "Intersection"
     query_rewriting: QueryRewriting = "SearchOnly"
     search_mode: SearchMode = "Lexical"
+    return_documents: Optional[DocumentOption] = None
 
     def to_payload(self) -> Dict[str, Any]:
         payload = _to_payload_from_dataclass(self)
@@ -619,6 +620,18 @@ class DocumentResponse:
     document: Document
 
 
+class SearchResult(TypedDict, total=False):
+    """Individual search result containing document ID and score.
+
+    Attributes:
+        doc_id: Internal SeekStorm document ID.
+        score: BM25 relevance score for this result.
+    """
+
+    doc_id: int
+    score: float
+
+
 @dataclass
 class PdfResponse:
     """Response wrapper for a binary PDF payload.
@@ -635,17 +648,20 @@ class SearchResultObject:
     """Search result payload returned by query endpoint.
 
     Attributes:
-        time: Query execution time reported by the server.
-        original_query: Original user query before rewriting.
-        query: Effective query executed by SeekStorm.
+        time: Query execution time reported by the server (in nanoseconds).
+        original_query: Original user query before any automatic rewriting.
+        query: Effective query executed by SeekStorm after any rewriting.
         offset: Result offset used for paging.
-        length: Number of returned results.
-        count: Number of matched results returned/visible for this request.
-        count_total: Total number of matches across the index.
-        query_terms: Tokenized query terms used internally.
-        results: List of matched documents.
+        length: Number of results requested.
+        count: Number of matched results returned in this response.
+        count_total: Total number of matches across the entire index.
+        query_terms: Tokenized query terms used internally for highlighting/scoring.
+        results: List of search results containing doc_id and score (always returned).
+        documents: List of full document payloads (only returned if return_documents was specified).
         facets: Facet aggregation results.
-        suggestions: Suggested query alternatives.
+        suggestions: Suggested query alternatives from spelling correction/completion.
+        observed_vector_count: Number of vectors observed during search (vector mode only).
+        observed_cluster_count: Number of clusters observed during search (clustering mode only).
     """
 
     time: int = 0
@@ -656,12 +672,25 @@ class SearchResultObject:
     count: int = 0
     count_total: int = 0
     query_terms: List[str] = field(default_factory=list)
-    results: List[Document] = field(default_factory=list)
+    results: List[SearchResult] = field(default_factory=list)
+    documents: List[Document] = field(default_factory=list)
     facets: Dict[str, Any] = field(default_factory=dict)
     suggestions: List[str] = field(default_factory=list)
+    observed_vector_count: int = 0
+    observed_cluster_count: int = 0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SearchResultObject":
+        # Parse results list, handling both old (full documents) and new (doc_id + score) formats
+        results_data = data.get("results", []) or []
+        results_list: List[SearchResult] = []
+        for item in results_data:
+            if isinstance(item, dict):
+                results_list.append(SearchResult(
+                    doc_id=int(item.get("doc_id", 0)),
+                    score=float(item.get("score", 0.0))
+                ))
+
         return cls(
             time=int(data.get("time", 0)),
             original_query=str(data.get("original_query", "")),
@@ -671,9 +700,12 @@ class SearchResultObject:
             count=int(data.get("count", 0)),
             count_total=int(data.get("count_total", 0)),
             query_terms=list(data.get("query_terms", []) or []),
-            results=list(data.get("results", []) or []),
+            results=results_list,
+            documents=list(data.get("documents", []) or []),
             facets=dict(data.get("facets", {}) or {}),
             suggestions=list(data.get("suggestions", []) or []),
+            observed_vector_count=int(data.get("observed_vector_count", 0)),
+            observed_cluster_count=int(data.get("observed_cluster_count", 0)),
         )
 
 

@@ -14,8 +14,10 @@ try:
         ApikeyQuotaObject,
         AsyncSeekStorm,
         CreateIndexRequest,
+        DocumentOption,
         GetDocumentRequest,
         GetIteratorRequest,
+        IndexConfig,
         SearchRequestObject,
         UpdateDocumentRequest,
     )
@@ -25,8 +27,10 @@ except ImportError:
         ApikeyQuotaObject,
         AsyncSeekStorm,
         CreateIndexRequest,
+        DocumentOption,
         GetDocumentRequest,
         GetIteratorRequest,
+        IndexConfig,
         SearchRequestObject,
         UpdateDocumentRequest,
     )
@@ -73,13 +77,15 @@ class TestAsyncSeekStormClientE2E(unittest.IsolatedAsyncioTestCase):
 
     async def _create_test_index(self):
         request = CreateIndexRequest(
-            index_name=f"e2e_async_{self._testMethodName}_{int(time.time() * 1000)}",
+            index_config=IndexConfig(
+                name=f"e2e_async_{self._testMethodName}_{int(time.time() * 1000)}",
+                lexical_similarity="Bm25f",
+                tokenizer="UnicodeAlphanumeric",
+                stemmer="None",
+                document_compression="Snappy",
+                ngram_indexing=0,
+            ),
             schema=self._build_schema(),
-            similarity="Bm25f",
-            tokenizer="UnicodeAlphanumeric",
-            stemmer="None",
-            document_compression="Snappy",
-            ngram_indexing=0,
         )
         return (await self.client.create_index(request)).index_id
 
@@ -161,7 +167,10 @@ class TestAsyncSeekStormClientE2E(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(len(iterator_result.results), 1)
 
             doc_id = iterator_result.results[0].doc_id
-            get_doc_request = GetDocumentRequest(query_terms=[], fields=[])
+            get_doc_request = GetDocumentRequest(
+                query_terms=[],
+                return_documents=DocumentOption(fields=[])
+            )
             got_doc = await self.client.get_document(index_id, doc_id, get_doc_request)
             self.assertIsInstance(got_doc.document, dict)
             self.assertGreaterEqual(len(got_doc.document), 1)
