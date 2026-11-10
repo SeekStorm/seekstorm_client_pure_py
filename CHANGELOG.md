@@ -7,14 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-11-10
 
-### Changed
+### Breaking Changes
 
-- **BREAKING**: `SearchRequestObject` now uses `return_documents: Optional[DocumentOption]` instead of separate `fields`, `highlights`, and `distance_fields` attributes
-- **BREAKING**: `GetDocumentRequest` now uses `return_documents: Optional[DocumentOption]` instead of separate `fields`, `highlights`, and `distance_fields` attributes
-- **BREAKING**: `CreateIndexRequest` restructured to split configuration into separate `IndexConfig` dataclass, which is now a required `index_config` parameter
+- This update ensures compatibility with the breaking changes in SeekStorm server v5.0.0.
+- `SearchRequestObject` now uses `return_documents: Optional[DocumentOption]` instead of separate `fields`, `highlights`, and `distance_fields` attributes
+- `GetDocumentRequest` now uses `return_documents: Optional[DocumentOption]` instead of separate `fields`, `highlights`, and `distance_fields` attributes
+- `CreateIndexRequest` restructured to split configuration into separate `IndexConfig` dataclass, which is now a required `index_config` parameter
   - Old: `CreateIndexRequest(index_name="demo", similarity="Bm25f", tokenizer="UnicodeAlphanumeric", ...)`
   - New: `CreateIndexRequest(index_config=IndexConfig(name="demo", lexical_similarity="Bm25f", tokenizer="UnicodeAlphanumeric", ...), schema=...)`
-- **BREAKING**: `SearchResultObject` restructured to separate result metadata from documents
+- `SearchResultObject` restructured to separate result metadata from documents
   - `results` field now contains `List[SearchResult]` (doc_id and score only), always returned
   - New `documents` field contains `List[Document]` (full documents), only returned if `return_documents` was specified
   - Renamed field in `IndexConfig`: `similarity` → `lexical_similarity` for consistency with the server API
